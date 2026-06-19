@@ -434,10 +434,10 @@ const globalStyles = `
   }
 
   /* ── CLASSES ── */
-  .animate-fadeIn       { animation: fadeIn 0.38s cubic-bezier(0.22,1,0.36,1) forwards; }
-  .animate-fadeInUp     { animation: fadeInUp 0.45s cubic-bezier(0.22,1,0.36,1) forwards; }
-  .animate-fadeInLeft   { animation: fadeInLeft 0.38s cubic-bezier(0.22,1,0.36,1) forwards; }
-  .animate-fadeInRight  { animation: fadeInRight 0.38s cubic-bezier(0.22,1,0.36,1) forwards; }
+  .animate-fadeIn       { animation: fadeIn 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+  .animate-fadeInUp     { animation: fadeInUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+  .animate-fadeInLeft   { animation: fadeInLeft 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+  .animate-fadeInRight  { animation: fadeInRight 0.38s cubic-bezier(0.22,1,0.36,1) both; }
   .animate-slideUp      { animation: slideUp 0.42s cubic-bezier(0.22,1,0.36,1) forwards; }
   .animate-slideDown    { animation: slideDown 0.35s cubic-bezier(0.22,1,0.36,1) forwards; }
   .animate-bounceIn     { animation: bounceIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards; }
@@ -1446,7 +1446,7 @@ export default function App() {
     const isAvailable = item.is_available !== false;
     return (
       <div key={`${item.id}-${activeCategory}`} className="animate-fadeIn row-press"
-        style={{ animationDelay: `${idx * 0.05}s`, opacity: 0, borderBottom: `1px solid ${borderCol}` }}>
+        style={{ animationDelay: `${idx * 0.05}s`, borderBottom: `1px solid ${borderCol}` }}>
         <div className="flex items-center gap-3 px-4 py-3" style={{ opacity: isAvailable ? 1 : 0.6 }}>
           {/* Image */}
           <div className="w-24 h-24 rounded-2xl overflow-hidden flex items-center justify-center shrink-0"
@@ -1537,7 +1537,7 @@ export default function App() {
   // ── STATUS VIEW ──
   if (!showSplash && view === "status") {
     const steps = ["new", "preparing", "ready", "delivered"];
-    const cur = myOrder ? steps.indexOf(myOrder.status) : 0;
+    const cur = myOrder ? steps.indexOf(myOrder.status === "pending" ? "new" : myOrder.status) : 0;
     const icons = ["📋", "👨‍🍳", "🍳", "✅"];
     const labels = [tx.statusNew, tx.statusPreparing, tx.statusReady || "Spremno", tx.statusDelivered];
     return (
@@ -1662,7 +1662,7 @@ export default function App() {
           {cartItems.length === 0
             ? <EmptyState icon="🛒" title={tx.empty} hint={tx.emptyHint} dark={dark} />
             : cartItems.map((item, idx) => (
-              <div key={item.id} className="animate-fadeIn" style={{ animationDelay: `${idx*0.05}s`, opacity: 0, borderBottom: `1px solid ${borderCol}` }}>
+              <div key={item.id} className="animate-fadeIn" style={{ animationDelay: `${idx*0.05}s`, borderBottom: `1px solid ${borderCol}` }}>
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 text-2xl" style={{ background: imgBg }}>
                     {item.img ? <img src={item.img} className="w-full h-full object-cover rounded-xl" alt="" /> : item.emoji}
@@ -1940,7 +1940,7 @@ export default function App() {
           {/* Right Panel: Orders Grid */}
           {(() => {
             const displayOrders = staffRole === "kitchen"
-              ? activeOrders.filter(order => order.items.some(item => isFoodItem(item.name)))
+              ? activeOrders.filter(order => (order.status === "new" || order.status === "preparing") && order.items.some(item => isFoodItem(item.name)))
               : activeOrders;
 
             return (
@@ -1969,6 +1969,7 @@ export default function App() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                       {displayOrders.map((order, idx) => {
+                        const orderStatus = order.status === "pending" ? "new" : order.status;
                         const mins = getMinutesElapsed(order.created_at);
                         const isRed = mins >= 10;
                         const isYellow = mins >= 5 && mins < 10;
@@ -1983,9 +1984,9 @@ export default function App() {
                           ? "#ef4444"
                           : isYellow
                           ? "#f59e0b"
-                          : order.status === "new"
+                          : orderStatus === "new"
                           ? "#f97316"
-                          : order.status === "ready"
+                          : orderStatus === "ready"
                           ? "#10b981"
                           : borderCol;
 
@@ -1999,9 +2000,8 @@ export default function App() {
                             style={{ 
                               background: orderBg, 
                               borderColor: orderBorder,
-                              boxShadow: order.status === "new" && !isRed && !isYellow ? "0 4px 20px rgba(249,115,22,0.08)" : "none",
-                              animationDelay: `${idx*0.05}s`, 
-                              opacity: 0 
+                              boxShadow: orderStatus === "new" && !isRed && !isYellow ? "0 4px 20px rgba(249,115,22,0.08)" : "none",
+                              animationDelay: `${idx*0.05}s`
                             }}>
                             <div>
                               {/* Header */}
@@ -2016,8 +2016,8 @@ export default function App() {
                                     <span className="opacity-40">•</span>
                                     <span>{order.time}</span>
                                   </span>
-                                  <span className={`text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full text-white ${statusColor[order.status]}`}>
-                                    {tx[`status${order.status.charAt(0).toUpperCase()+order.status.slice(1)}`]}
+                                  <span className={`text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full text-white ${statusColor[orderStatus]}`}>
+                                    {tx[`status${orderStatus.charAt(0).toUpperCase()+orderStatus.slice(1)}`]}
                                   </span>
                                 </div>
                               </div>
@@ -2027,7 +2027,7 @@ export default function App() {
                                 {itemsToRender.map((item, i) => {
                                   // In waiter view, show if food items are ready if order is preparing
                                   const isItemFood = isFoodItem(item.name);
-                                  const showFoodReadyBadge = staffRole === "waiter" && isItemFood && order.status === "ready";
+                                  const showFoodReadyBadge = staffRole === "waiter" && isItemFood && orderStatus === "ready";
                                   
                                   return (
                                     <div key={i} className="flex flex-col pb-2 last:pb-0 border-b border-dashed last:border-0" style={{ borderColor: borderCol }}>
@@ -2064,22 +2064,22 @@ export default function App() {
 
                             {/* Action Button */}
                             <div className="flex gap-2">
-                              <button onClick={() => updateStatus(order.id, statusNext[order.status])}
+                              <button onClick={() => updateStatus(order.id, statusNext[orderStatus])}
                                 className="flex-1 font-bold py-3 rounded-2xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
                                 style={{ 
-                                  background: order.status === "new" ? "#f97316" : order.status === "preparing" ? "#3b82f6" : "#10b981", 
+                                  background: orderStatus === "new" ? "#f97316" : orderStatus === "preparing" ? "#3b82f6" : "#10b981", 
                                   color: "#fff",
-                                  boxShadow: order.status === "new" ? "0 4px 12px rgba(249,115,22,0.2)" : order.status === "preparing" ? "0 4px 12px rgba(59,130,246,0.2)" : "0 4px 12px rgba(16,185,129,0.2)"
+                                  boxShadow: orderStatus === "new" ? "0 4px 12px rgba(249,115,22,0.2)" : orderStatus === "preparing" ? "0 4px 12px rgba(59,130,246,0.2)" : "0 4px 12px rgba(16,185,129,0.2)"
                                 }}>
                                 <span>
-                                  {order.status === "new" 
+                                  {orderStatus === "new" 
                                     ? `👨‍🍳 ${tx.btnPrepare}` 
-                                    : order.status === "preparing" 
+                                    : orderStatus === "preparing" 
                                     ? `🍳 ${tx.btnReady || "Spremno"}` 
                                     : `✅ ${tx.btnDeliver}`}
                                 </span>
                               </button>
-                              {staffRole === "waiter" && order.status !== "ready" && (
+                              {staffRole === "waiter" && orderStatus !== "ready" && (
                                 <button onClick={() => updateStatus(order.id, "delivered")}
                                   className="px-3 rounded-2xl text-sm font-bold transition-all active:scale-95 border"
                                   style={{ borderColor: borderCol, color: textSub }}
