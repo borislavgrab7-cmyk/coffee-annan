@@ -693,6 +693,14 @@ export default function App() {
   const [menuData, setMenuData] = useState({});
   const [tableNumber, setTableNumber] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [waiterToast, setWaiterToast] = useState(null);
+
+  useEffect(() => {
+    if (waiterToast) {
+      const t = setTimeout(() => setWaiterToast(null), 5500);
+      return () => clearTimeout(t);
+    }
+  }, [waiterToast]);
 
   const lastBackTime = useRef(0);
   const [showExitToast, setShowExitToast] = useState(false);
@@ -889,6 +897,11 @@ export default function App() {
     isWaiterActiveRef.current = isWaiterActive;
   }, [isWaiterActive]);
 
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
+
   const playNotificationSound = () => {
     try {
       console.log("[Audio] Pokušavam reprodukciju zvuka...");
@@ -1052,10 +1065,18 @@ export default function App() {
           if (payload.new.status === "delivered") {
             setOrders(prev => prev.filter(o => o.id !== payload.new.id));
           } else {
-            setOrders(prev => prev.map(o => o.id === payload.new.id ? {
-              ...o,
-              status: payload.new.status
-            } : o));
+            setOrders(prev => {
+              const existing = prev.find(o => o.id === payload.new.id);
+              const wasNotReady = !existing || existing.status !== "ready";
+              if (wasNotReady && payload.new.status === "ready" && isWaiterActiveRef.current) {
+                setWaiterToast(langRef.current === "EN" ? `Food for Table ${payload.new.table_number} is ready!` : `Hrana za Sto ${payload.new.table_number} je spremna!`);
+                playNotificationSound();
+              }
+              return prev.map(o => o.id === payload.new.id ? {
+                ...o,
+                status: payload.new.status
+              } : o);
+            });
           }
         } else if (payload.eventType === "DELETE") {
           setOrders(prev => prev.filter(o => o.id !== payload.old.id));
@@ -1790,6 +1811,33 @@ export default function App() {
     return (
       <div className="h-screen flex flex-col font-body animate-fadeIn" style={{ background: dark ? "#0a0a0a" : "#f9f9f9" }}>
         <style>{globalStyles}</style>
+
+        {/* Waiter Toast Notification Banner */}
+        {waiterToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4 animate-slideDown">
+            <div className="rounded-2xl p-4 shadow-xl flex items-center gap-3 border backdrop-blur-md"
+              style={{
+                background: dark ? "rgba(6,95,70,0.85)" : "rgba(236,253,245,0.92)",
+                borderColor: dark ? "#059669" : "#10b981",
+                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"
+              }}>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-xl shrink-0 animate-bounce">
+                🔔
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs uppercase tracking-widest font-extrabold text-emerald-600 dark:text-emerald-300">
+                  {lang === "EN" ? "Kitchen Alert" : "Obavještenje iz kuhinje"}
+                </p>
+                <p className="text-sm font-bold text-emerald-950 dark:text-emerald-50 mt-0.5">
+                  {waiterToast}
+                </p>
+              </div>
+              <button onClick={() => setWaiterToast(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 active:scale-90 shrink-0 text-lg font-bold">
+                ×
+              </button>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: borderCol, background: headerBg }}>
           <div className="flex items-center gap-6">
             <div>
