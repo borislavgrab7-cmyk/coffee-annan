@@ -119,3 +119,10 @@ alter table cafe_info disable row level security;
 alter table menu_items disable row level security;
 alter table orders disable row level security;
 alter table alerts disable row level security;
+
+-- 7. Kreiranje indeksa za optimizaciju performansi (ubrzavanje narudžbina i učitavanja)
+create index if not exists idx_orders_status_active on orders (status) where status != 'delivered';
+create index if not exists idx_orders_created_at on orders (created_at desc);
+create index if not exists idx_alerts_created_at on alerts (created_at desc);
+create index if not exists idx_menu_items_sort_order on menu_items (sort_order asc);
+

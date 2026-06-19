@@ -292,7 +292,6 @@ const badgeConfig = {
 };
 
 const globalStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; }
   .font-display { font-family: 'Playfair Display', serif; }
   .font-body { font-family: 'Inter', sans-serif; }
@@ -1476,6 +1475,7 @@ export default function App() {
               src={item.img}
               alt={item.name}
               className="w-full h-full object-cover"
+              loading="lazy"
               onError={e => { e.target.style.display="none"; e.target.parentNode.innerHTML=`<span style="font-size:2.5rem">${item.emoji||"🍽️"}</span>`; }}
             />
           </div>
