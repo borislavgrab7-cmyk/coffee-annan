@@ -1,0 +1,28 @@
+# Zavisnosti
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment varijable — NIKADA ne stavljati na GitHub!
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS fajlovi
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
