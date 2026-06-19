@@ -1073,7 +1073,8 @@ export default function App() {
               }
               return prev.map(o => o.id === payload.new.id ? {
                 ...o,
-                status: payload.new.status
+                status: payload.new.status,
+                items: payload.new.items
               } : o);
             });
           }
@@ -1334,6 +1335,22 @@ export default function App() {
       .eq("id", id);
     if (error) {
       console.error("Error updating order status:", error);
+    }
+  };
+
+  const toggleItemDelivered = async (order, itemIndex) => {
+    const updatedItems = order.items.map((item, idx) => 
+      idx === itemIndex ? { ...item, delivered: !item.delivered } : item
+    );
+    const allDelivered = updatedItems.every(item => item.delivered);
+    const status = allDelivered ? "delivered" : order.status;
+    
+    const { error } = await supabase
+      .from("orders")
+      .update({ items: updatedItems, status })
+      .eq("id", order.id);
+    if (error) {
+      console.error("Error updating item delivery:", error);
     }
   };
 
@@ -1637,23 +1654,34 @@ export default function App() {
               <span className="font-bold" style={{ color: "#f97316" }}>{tx.table} {tableNumber}</span>
               <span className="text-sm" style={{ color: textSub }}>{myOrder?.time}</span>
             </div>
-            {myOrder?.items.map((item, i) => (
-              <div key={i} className="py-2 border-b last:border-0" style={{ borderColor: borderCol }}>
-                <div className="flex justify-between text-sm">
-                  <span style={{ color: textMain }}>
-                    {lang === "EN" ? (() => {
-                      for (const cat in menuData) {
-                        const found = menuData[cat].find(i => i.name === item.name);
-                        if (found && found.name_en) return found.name_en;
-                      }
-                      return item.name;
-                    })() : item.name}
-                  </span>
-                  <span style={{ color: textSub }}>× {item.qty}</span>
+            {myOrder?.items.map((item, i) => {
+              const isDelivered = item.delivered === true;
+              return (
+                <div key={i} className="py-2 border-b last:border-0" style={{ borderColor: borderCol, opacity: isDelivered ? 0.5 : 1 }}>
+                  <div className="flex justify-between text-sm items-center">
+                    <span style={{ color: textMain, textDecoration: isDelivered ? "line-through" : "none" }} className="flex items-center gap-1.5">
+                      {isDelivered && <span className="text-xs text-green-500 font-bold">✓</span>}
+                      {lang === "EN" ? (() => {
+                        for (const cat in menuData) {
+                          const found = menuData[cat].find(i => i.name === item.name);
+                          if (found && found.name_en) return found.name_en;
+                        }
+                        return item.name;
+                      })() : item.name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {isDelivered && (
+                        <span className="text-[10px] uppercase font-bold text-green-500 bg-green-500/10 dark:bg-green-500/20 px-2 py-0.5 rounded-md">
+                          {lang === "EN" ? "Delivered" : "Dostavljeno"}
+                        </span>
+                      )}
+                      <span style={{ color: textSub }}>× {item.qty}</span>
+                    </div>
+                  </div>
+                  {item.note ? <p className="text-orange-500 text-xs mt-0.5 italic">"{item.note}"</p> : null}
                 </div>
-                {item.note ? <p className="text-orange-500 text-xs mt-0.5 italic">"{item.note}"</p> : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
           {myOrder?.status === "delivered" && (
             <div className="text-center animate-bounceIn">
@@ -2076,15 +2104,36 @@ export default function App() {
                                   // In waiter view, show if food items are ready if order is preparing
                                   const isItemFood = isFoodItem(item.name);
                                   const showFoodReadyBadge = staffRole === "waiter" && isItemFood && orderStatus === "ready";
+                                  const isDelivered = item.delivered === true;
+                                  const originalIndex = order.items.indexOf(item);
                                   
                                   return (
-                                    <div key={i} className="flex flex-col pb-2 last:pb-0 border-b border-dashed last:border-0" style={{ borderColor: borderCol }}>
+                                    <div key={i} className="flex flex-col pb-2 last:pb-0 border-b border-dashed last:border-0" style={{ borderColor: borderCol, opacity: isDelivered ? 0.45 : 1 }}>
                                       <div className="flex justify-between items-start text-sm">
-                                        <div className="flex flex-col flex-1 pr-2">
-                                          <span className="font-bold" style={{ color: textMain }}>{item.name}</span>
-                                          {showFoodReadyBadge && (
-                                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">🍳 Spremno</span>
+                                        <div className="flex items-center flex-1 pr-2 min-w-0">
+                                          {staffRole === "waiter" && (
+                                            <button 
+                                              onClick={() => toggleItemDelivered(order, originalIndex)}
+                                              className="w-5 h-5 rounded-md border flex items-center justify-center transition-all shrink-0 mr-2"
+                                              style={{
+                                                borderColor: isDelivered ? "#10b981" : borderCol,
+                                                backgroundColor: isDelivered ? "#10b981" : (dark ? "#2a2220" : "#fff"),
+                                                color: "#fff"
+                                              }}
+                                            >
+                                              {isDelivered && (
+                                                <svg className="w-3.5 h-3.5 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                  <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                              )}
+                                            </button>
                                           )}
+                                          <div className="flex flex-col min-w-0">
+                                            <span className="font-bold truncate" style={{ color: textMain, textDecoration: isDelivered ? "line-through" : "none" }}>{item.name}</span>
+                                            {showFoodReadyBadge && (
+                                              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">🍳 Spremno</span>
+                                            )}
+                                          </div>
                                         </div>
                                         <span className="px-2 py-0.5 rounded-lg text-xs font-black shrink-0" 
                                           style={{ 
