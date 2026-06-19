@@ -11,8 +11,8 @@ const t = {
     total: "Ukupno", placeOrder: "Pošalji porudžbinu",
     reviewOrder: "Pregledaj porudžbinu", addNote: "Napomena (npr. bez šećera)...",
     orders: "Porudžbine", noOrders: "Nema aktivnih porudžbina", noOrdersHint: "Čekamo nove porudžbine...",
-    statusNew: "Nova", statusPreparing: "U pripremi", statusDelivered: "Dostavljeno",
-    btnPrepare: "Pripremi", btnDeliver: "Dostavljeno", add: "Dodaj",
+    statusNew: "Nova", statusPreparing: "U pripremi", statusReady: "Spremno", statusDelivered: "Dostavljeno",
+    btnPrepare: "Pripremi", btnReady: "Spremno", btnDeliver: "Dostavljeno", add: "Dodaj",
     myOrderStatus: "Status porudžbine",
     cats: {
       Kafa: "Kafa", kafa: "Kafa",
@@ -101,8 +101,8 @@ const t = {
     total: "Ukupno", placeOrder: "Pošalji narudžbu",
     reviewOrder: "Pregledaj narudžbu", addNote: "Napomena (npr. bez šećera)...",
     orders: "Narudžbe", noOrders: "Nema aktivnih narudžbi", noOrdersHint: "Čekamo nove narudžbe...",
-    statusNew: "Nova", statusPreparing: "U pripremi", statusDelivered: "Dostavljeno",
-    btnPrepare: "Pripremi", btnDeliver: "Dostavljeno", add: "Dodaj",
+    statusNew: "Nova", statusPreparing: "U pripremi", statusReady: "Spremno", statusDelivered: "Dostavljeno",
+    btnPrepare: "Pripremi", btnReady: "Spremno", btnDeliver: "Dostavljeno", add: "Dodaj",
     myOrderStatus: "Status narudžbe",
     cats: {
       Kafa: "Kafa", kafa: "Kafa",
@@ -191,8 +191,8 @@ const t = {
     total: "Total", placeOrder: "Place order",
     reviewOrder: "Review order", addNote: "Note (e.g. no sugar)...",
     orders: "Orders", noOrders: "No active orders", noOrdersHint: "Waiting for new orders...",
-    statusNew: "New", statusPreparing: "Preparing", statusDelivered: "Delivered",
-    btnPrepare: "Prepare", btnDeliver: "Delivered", add: "Add",
+    statusNew: "New", statusPreparing: "Preparing", statusReady: "Ready", statusDelivered: "Delivered",
+    btnPrepare: "Prepare", btnReady: "Ready", btnDeliver: "Delivered", add: "Add",
     myOrderStatus: "Order status",
     cats: {
       Kafa: "Coffee", kafa: "Coffee",
@@ -282,8 +282,8 @@ const seedOrders = [
   { id: "ORD-002", table: 5, time: "21:38", status: "new", items: [{ name: "Club sendvič", qty: 1, note: "" }, { name: "Ledeni čaj", qty: 2, note: "" }] },
 ];
 
-const statusColor = { new: "bg-amber-500", preparing: "bg-blue-500", delivered: "bg-green-600" };
-const statusNext = { new: "preparing", preparing: "delivered" };
+const statusColor = { new: "bg-amber-500", preparing: "bg-blue-500", ready: "bg-emerald-500", delivered: "bg-green-600" };
+const statusNext = { new: "preparing", preparing: "ready", ready: "delivered" };
 
 const badgeConfig = {
   popular:     { label: "⭐ ", color: "#f97316" },
@@ -671,6 +671,7 @@ export default function App() {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [waiterLoggedIn, setWaiterLoggedIn] = useState(false);
+  const [staffRole, setStaffRole] = useState(() => localStorage.getItem("staffRole") || "waiter");
   const [cafeInfo, setCafeInfo] = useState(null);
   const [dark, setDark] = useState(false); // default light like screenshot
   const [lang, setLang] = useState("SR");
@@ -1186,6 +1187,14 @@ export default function App() {
     return `${m}:${String(s).padStart(2, "0")}`;
   };
 
+  const isFoodItem = (itemName) => {
+    for (const cat of mainSections.jelo) {
+      const list = menuData[cat] || [];
+      if (list.some(i => i.name === itemName)) return true;
+    }
+    return false;
+  };
+
   const handleMainSectionChange = (sec) => {
     triggerVibrate(15);
     setMainSection(sec);
@@ -1527,10 +1536,10 @@ export default function App() {
 
   // ── STATUS VIEW ──
   if (!showSplash && view === "status") {
-    const steps = ["new","preparing","delivered"];
+    const steps = ["new", "preparing", "ready", "delivered"];
     const cur = myOrder ? steps.indexOf(myOrder.status) : 0;
-    const icons = ["📋","👨‍🍳","✅"];
-    const labels = [tx.statusNew, tx.statusPreparing, tx.statusDelivered];
+    const icons = ["📋", "👨‍🍳", "🍳", "✅"];
+    const labels = [tx.statusNew, tx.statusPreparing, tx.statusReady || "Spremno", tx.statusDelivered];
     return (
       <div className="min-h-screen flex flex-col font-body animate-fadeIn" style={{ background: bg }}>
         <style>{globalStyles}</style>
@@ -1542,7 +1551,7 @@ export default function App() {
         <div className="p-5">
           <div className="flex items-start justify-between mb-8 relative px-2">
             <div className="absolute left-6 right-6 top-5 h-0.5 z-0" style={{ background: borderCol }}>
-              <div className="h-full bg-orange-500 transition-all duration-700" style={{ width: `${(cur/2)*100}%` }} />
+              <div className="h-full bg-orange-500 transition-all duration-700" style={{ width: `${(cur/3)*100}%` }} />
             </div>
             {labels.map((label, i) => (
               <div key={i} className="flex flex-col items-center z-10 gap-2 w-16">
@@ -1557,14 +1566,19 @@ export default function App() {
           {/* ── LIVE TIMER KARTICA ── */}
           {myOrder?.status !== "delivered" && myOrder?.created_at && (() => {
             const mins = Math.floor(statusElapsedSec / 60);
-            const timerColor = mins >= 15 ? "#ef4444" : mins >= 8 ? "#f59e0b" : "#22c55e";
-            const timerBg    = mins >= 15
+            const isReadyStatus = myOrder?.status === "ready";
+            const timerColor = isReadyStatus ? "#10b981" : mins >= 15 ? "#ef4444" : mins >= 8 ? "#f59e0b" : "#22c55e";
+            const timerBg    = isReadyStatus
+              ? (dark ? "#062016" : "#ecfdf5")
+              : mins >= 15
               ? (dark ? "#270f0f" : "#fef2f2")
               : mins >= 8
               ? (dark ? "#2d2208" : "#fef3c7")
               : (dark ? "#0d1f0d" : "#f0fdf4");
-            const timerBorder = mins >= 15 ? "#ef4444" : mins >= 8 ? "#f59e0b" : "#22c55e";
-            const timerLabel  = mins >= 15
+            const timerBorder = isReadyStatus ? "#10b981" : mins >= 15 ? "#ef4444" : mins >= 8 ? "#f59e0b" : "#22c55e";
+            const timerLabel  = isReadyStatus
+              ? (lang === "EN" ? "Ready for pickup!" : "Spremno za preuzimanje!")
+              : mins >= 15
               ? (lang === "EN" ? "Taking longer than usual" : "Duže od uobičajenog")
               : mins >= 8
               ? (lang === "EN" ? "Almost ready" : "Skoro je gotovo")
@@ -1777,9 +1791,23 @@ export default function App() {
       <div className="h-screen flex flex-col font-body animate-fadeIn" style={{ background: dark ? "#0a0a0a" : "#f9f9f9" }}>
         <style>{globalStyles}</style>
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: borderCol, background: headerBg }}>
-          <div>
-            <p className="text-xs uppercase tracking-widest mb-0.5" style={{ color: textSub }}>Panel</p>
-            <h1 className="text-xl font-bold" style={{ color: textMain }}>{tx.orders}</h1>
+          <div className="flex items-center gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-widest mb-0.5" style={{ color: textSub }}>Panel</p>
+              <h1 className="text-xl font-bold" style={{ color: textMain }}>{tx.orders}</h1>
+            </div>
+            
+            {/* Toggle Role */}
+            <div className="flex bg-orange-50 dark:bg-orange-950/20 p-1 rounded-xl border border-orange-200/50 dark:border-orange-900/30">
+              <button onClick={() => { setStaffRole("waiter"); localStorage.setItem("staffRole", "waiter"); }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 active:scale-95 ${staffRole === "waiter" ? "bg-orange-500 text-white shadow-sm" : "text-orange-500"}`}>
+                <span>💁</span> {lang === "EN" ? "Waiter" : "Konobar"}
+              </button>
+              <button onClick={() => { setStaffRole("kitchen"); localStorage.setItem("staffRole", "kitchen"); }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 active:scale-95 ${staffRole === "kitchen" ? "bg-orange-500 text-white shadow-sm" : "text-orange-500"}`}>
+                <span>👨‍🍳</span> {lang === "EN" ? "Kitchen" : "Kuhinja"}
+              </button>
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setDark(d => !d)} className="w-10 h-10 rounded-full flex items-center justify-center"
@@ -1797,8 +1825,8 @@ export default function App() {
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(tNum => {
               const tableString = String(tNum);
-              const hasActiveCall = alerts.some(a => String(a.table) === tableString);
-              const hasActiveOrder = activeOrders.some(o => String(o.table) === tableString);
+              const hasActiveCall = staffRole !== "kitchen" && alerts.some(a => String(a.table) === tableString);
+              const hasActiveOrder = activeOrders.some(o => String(o.table) === tableString && (staffRole !== "kitchen" || o.items.some(item => isFoodItem(item.name))));
               
               let tableStatusColor = dark ? "bg-zinc-800 text-zinc-400" : "bg-zinc-100 text-zinc-500";
               let borderColOverride = dark ? "border-zinc-700" : "border-zinc-200";
@@ -1825,199 +1853,250 @@ export default function App() {
         </div>
 
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-          {/* Left Panel: Alerts (Docked on tablets, scrollable) */}
-          <div className={`w-full md:w-80 lg:w-96 shrink-0 border-b md:border-b-0 md:border-r flex flex-col min-h-0 ${alerts.length === 0 ? "hidden md:flex" : "flex"}`}
-            style={{ borderColor: borderCol, background: dark ? "#0f0f0f" : "#fcfcfc" }}>
-            <div className="p-4 border-b shrink-0 flex items-center justify-between" style={{ borderColor: borderCol }}>
-              <span className="text-xs uppercase tracking-widest font-bold" style={{ color: textSub }}>{tx.callsAlerts}</span>
-              {alerts.length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black animate-pulse">
-                  {alerts.length}
-                </span>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {alerts.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-10 opacity-40">
-                  <span className="text-3xl mb-2">🔔</span>
-                  <p className="text-xs" style={{ color: textSub }}>Nema aktivnih poziva</p>
-                </div>
-              ) : (
-                alerts.map(a => {
-                  const mins = getMinutesElapsed(a.created_at);
-                  const isRed = mins >= 10;
-                  const isYellow = mins >= 5 && mins < 10;
-                  
-                  const alertBg = isRed
-                    ? (dark ? "#270f0f" : "#fef2f2")
-                    : isYellow
-                    ? (dark ? "#2d2208" : "#fef3c7")
-                    : a.type === "call"
-                    ? (dark ? "#2d1a08" : "#fff7ed")
-                    : (dark ? "#0d1f0d" : "#f0fdf4");
-
-                  const alertBorder = isRed
-                    ? "#ef4444"
-                    : isYellow
-                    ? "#f59e0b"
-                    : a.type === "call"
-                    ? "#f97316"
-                    : "#22c55e";
-
-                  const pulseClass = (isRed || isYellow) ? "animate-pulse" : "";
-
-                  return (
-                    <div key={a.id} className={`rounded-2xl p-4 flex flex-col gap-3 animate-fadeIn border transition-all hover:scale-[1.02] ${pulseClass}`}
-                      style={{ 
-                        background: alertBg, 
-                        borderColor: alertBorder 
-                      }}>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-extrabold text-xs" style={{ color: textMain }}>
-                            {a.type==="call" ? tx.callWaiterAlert : tx.billAlert}
-                          </p>
-                          <p className="text-2xl font-black mt-1" style={{ color: isRed ? "#ef4444" : isYellow ? "#f59e0b" : (a.type==="call" ? "#f97316" : "#22c55e") }}>
-                            {a.table}
-                          </p>
-                        </div>
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)", color: isRed ? "#ef4444" : isYellow ? "#f59e0b" : textSub }}>
-                          <span>⏱️ {mins}m</span>
-                          <span className="opacity-40">•</span>
-                          <span>{a.time}</span>
-                        </span>
-                      </div>
-                    
-                    {a.payMethod && (
-                      <div className="flex items-center gap-1.5 text-sm font-semibold text-green-600 dark:text-green-400">
-                        <span>{a.payMethod === "card" ? `💳 ${tx.payCard}` : `💵 ${tx.payCash}`}</span>
-                      </div>
-                    )}
-                    
-                    <button onClick={() => dismissAlert(a.id)} className="w-full font-bold py-2.5 rounded-xl text-xs transition-all active:scale-95"
-                      style={{ 
-                        background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)", 
-                        color: textMain 
-                      }}>
-                      {tx.dismiss}
-                    </button>
+          {/* Left Panel: Alerts (Only for Waiters) */}
+          {staffRole !== "kitchen" && (
+            <div className={`w-full md:w-80 lg:w-96 shrink-0 border-b md:border-b-0 md:border-r flex flex-col min-h-0 ${alerts.length === 0 ? "hidden md:flex" : "flex"}`}
+              style={{ borderColor: borderCol, background: dark ? "#0f0f0f" : "#fcfcfc" }}>
+              <div className="p-4 border-b shrink-0 flex items-center justify-between" style={{ borderColor: borderCol }}>
+                <span className="text-xs uppercase tracking-widest font-bold" style={{ color: textSub }}>{tx.callsAlerts}</span>
+                {alerts.length > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black animate-pulse">
+                    {alerts.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {alerts.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-10 opacity-40">
+                    <span className="text-3xl mb-2">🔔</span>
+                    <p className="text-xs" style={{ color: textSub }}>Nema aktivnih poziva</p>
                   </div>
-                )})
-              )}
-            </div>
-          </div>
-
-          {/* Right Panel: Orders Grid */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="p-4 border-b shrink-0 flex items-center justify-between shadow-sm md:shadow-none" style={{ borderColor: borderCol }}>
-              <span className="text-xs uppercase tracking-widest font-bold" style={{ color: textSub }}>Aktivne Narudžbe</span>
-              {activeOrders.length > 0 && (
-                <span className="bg-orange-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black">
-                  {activeOrders.length}
-                </span>
-              )}
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 md:p-6">
-              {activeOrders.length === 0 ? (
-                <EmptyState icon="🍽️" title={tx.noOrders} hint={tx.noOrdersHint} dark={dark} />
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {activeOrders.map((order, idx) => {
-                    const mins = getMinutesElapsed(order.created_at);
+                ) : (
+                  alerts.map(a => {
+                    const mins = getMinutesElapsed(a.created_at);
                     const isRed = mins >= 10;
                     const isYellow = mins >= 5 && mins < 10;
-
-                    const orderBg = isRed
+                    
+                    const alertBg = isRed
                       ? (dark ? "#270f0f" : "#fef2f2")
                       : isYellow
                       ? (dark ? "#2d2208" : "#fef3c7")
-                      : cardBg;
+                      : a.type === "call"
+                      ? (dark ? "#2d1a08" : "#fff7ed")
+                      : (dark ? "#0d1f0d" : "#f0fdf4");
 
-                    const orderBorder = isRed
+                    const alertBorder = isRed
                       ? "#ef4444"
                       : isYellow
                       ? "#f59e0b"
-                      : order.status === "new"
+                      : a.type === "call"
                       ? "#f97316"
-                      : borderCol;
+                      : "#22c55e";
 
                     const pulseClass = (isRed || isYellow) ? "animate-pulse" : "";
 
                     return (
-                      <div key={order.id} className={`rounded-3xl p-5 flex flex-col justify-between animate-fadeIn border shadow-sm transition-all hover:shadow-md hover:scale-[1.01] ${pulseClass}`} 
+                      <div key={a.id} className={`rounded-2xl p-4 flex flex-col gap-3 animate-fadeIn border transition-all hover:scale-[1.02] ${pulseClass}`}
                         style={{ 
-                          background: orderBg, 
-                          borderColor: orderBorder,
-                          boxShadow: order.status === "new" && !isRed && !isYellow ? "0 4px 20px rgba(249,115,22,0.08)" : "none",
-                          animationDelay: `${idx*0.05}s`, 
-                          opacity: 0 
+                          background: alertBg, 
+                          borderColor: alertBorder 
                         }}>
-                        <div>
-                          {/* Header */}
-                          <div className="flex items-center justify-between mb-4 border-b pb-3" style={{ borderColor: borderCol }}>
-                            <div>
-                              <span className="text-xs font-bold uppercase tracking-wider block" style={{ color: textSub }}>Sto</span>
-                              <span className="font-black text-3xl" style={{ color: textMain }}>{order.table}</span>
-                            </div>
-                            <div className="flex flex-col items-end gap-1.5">
-                              <span className="text-xs font-semibold flex items-center gap-1" style={{ color: isRed ? "#ef4444" : isYellow ? "#f59e0b" : textSub }}>
-                                <span>⏱️ {mins}m</span>
-                                <span className="opacity-40">•</span>
-                                <span>{order.time}</span>
-                              </span>
-                              <span className={`text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full text-white ${statusColor[order.status]}`}>
-                                {tx[`status${order.status.charAt(0).toUpperCase()+order.status.slice(1)}`]}
-                              </span>
-                            </div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-extrabold text-xs" style={{ color: textMain }}>
+                              {a.type==="call" ? tx.callWaiterAlert : tx.billAlert}
+                            </p>
+                            <p className="text-2xl font-black mt-1" style={{ color: isRed ? "#ef4444" : isYellow ? "#f59e0b" : (a.type==="call" ? "#f97316" : "#22c55e") }}>
+                              {a.table}
+                            </p>
                           </div>
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)", color: isRed ? "#ef4444" : isYellow ? "#f59e0b" : textSub }}>
+                            <span>⏱️ {mins}m</span>
+                            <span className="opacity-40">•</span>
+                            <span>{a.time}</span>
+                          </span>
+                        </div>
+                      
+                      {a.payMethod && (
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-green-600 dark:text-green-400">
+                          <span>{a.payMethod === "card" ? `💳 ${tx.payCard}` : `💵 ${tx.payCash}`}</span>
+                        </div>
+                      )}
+                      
+                      <button onClick={() => dismissAlert(a.id)} className="w-full font-bold py-2.5 rounded-xl text-xs transition-all active:scale-95"
+                        style={{ 
+                          background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)", 
+                          color: textMain 
+                        }}>
+                        {tx.dismiss}
+                      </button>
+                    </div>
+                  )})
+                )}
+              </div>
+            </div>
+          )}
 
-                          {/* Items */}
-                          <div className="space-y-3 mb-6">
-                            {order.items.map((item, i) => (
-                              <div key={i} className="flex flex-col pb-2 last:pb-0 border-b border-dashed last:border-0" style={{ borderColor: borderCol }}>
-                                <div className="flex justify-between items-start text-sm">
-                                  <span className="font-bold flex-1 pr-2" style={{ color: textMain }}>{item.name}</span>
-                                  <span className="px-2 py-0.5 rounded-lg text-xs font-black shrink-0" 
-                                    style={{ 
-                                      background: dark ? "rgba(249,115,22,0.15)" : "#ffedd5", 
-                                      color: "#f97316" 
-                                    }}>
-                                    × {item.qty}
+          {/* Right Panel: Orders Grid */}
+          {(() => {
+            const displayOrders = staffRole === "kitchen"
+              ? activeOrders.filter(order => order.items.some(item => isFoodItem(item.name)))
+              : activeOrders;
+
+            return (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="p-4 border-b shrink-0 flex items-center justify-between shadow-sm md:shadow-none" style={{ borderColor: borderCol }}>
+                  <span className="text-xs uppercase tracking-widest font-bold" style={{ color: textSub }}>
+                    {staffRole === "kitchen" 
+                      ? (lang === "EN" ? "Kitchen Orders" : "Kuhinjske narudžbe") 
+                      : (lang === "EN" ? "Active Orders" : "Aktivne Narudžbe")}
+                  </span>
+                  {displayOrders.length > 0 && (
+                    <span className="bg-orange-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black animate-scaleIn">
+                      {displayOrders.length}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                  {displayOrders.length === 0 ? (
+                    <EmptyState 
+                      icon={staffRole === "kitchen" ? "👨‍🍳" : "🍽️"} 
+                      title={staffRole === "kitchen" ? (lang === "EN" ? "No kitchen orders" : "Nema narudžbi za kuhinju") : tx.noOrders} 
+                      hint={staffRole === "kitchen" ? (lang === "EN" ? "Waiting for food orders..." : "Čekamo nove narudžbe za hranu...") : tx.noOrdersHint} 
+                      dark={dark} 
+                    />
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {displayOrders.map((order, idx) => {
+                        const mins = getMinutesElapsed(order.created_at);
+                        const isRed = mins >= 10;
+                        const isYellow = mins >= 5 && mins < 10;
+
+                        const orderBg = isRed
+                          ? (dark ? "#270f0f" : "#fef2f2")
+                          : isYellow
+                          ? (dark ? "#2d2208" : "#fef3c7")
+                          : cardBg;
+
+                        const orderBorder = isRed
+                          ? "#ef4444"
+                          : isYellow
+                          ? "#f59e0b"
+                          : order.status === "new"
+                          ? "#f97316"
+                          : order.status === "ready"
+                          ? "#10b981"
+                          : borderCol;
+
+                        const pulseClass = (isRed || isYellow) ? "animate-pulse" : "";
+                        const itemsToRender = staffRole === "kitchen"
+                          ? order.items.filter(item => isFoodItem(item.name))
+                          : order.items;
+
+                        return (
+                          <div key={order.id} className={`rounded-3xl p-5 flex flex-col justify-between animate-fadeIn border shadow-sm transition-all hover:shadow-md hover:scale-[1.01] ${pulseClass}`} 
+                            style={{ 
+                              background: orderBg, 
+                              borderColor: orderBorder,
+                              boxShadow: order.status === "new" && !isRed && !isYellow ? "0 4px 20px rgba(249,115,22,0.08)" : "none",
+                              animationDelay: `${idx*0.05}s`, 
+                              opacity: 0 
+                            }}>
+                            <div>
+                              {/* Header */}
+                              <div className="flex items-center justify-between mb-4 border-b pb-3" style={{ borderColor: borderCol }}>
+                                <div>
+                                  <span className="text-xs font-bold uppercase tracking-wider block" style={{ color: textSub }}>Sto</span>
+                                  <span className="font-black text-3xl" style={{ color: textMain }}>{order.table}</span>
+                                </div>
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className="text-xs font-semibold flex items-center gap-1" style={{ color: isRed ? "#ef4444" : isYellow ? "#f59e0b" : textSub }}>
+                                    <span>⏱️ {mins}m</span>
+                                    <span className="opacity-40">•</span>
+                                    <span>{order.time}</span>
+                                  </span>
+                                  <span className={`text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full text-white ${statusColor[order.status]}`}>
+                                    {tx[`status${order.status.charAt(0).toUpperCase()+order.status.slice(1)}`]}
                                   </span>
                                 </div>
-                                {item.note ? (
-                                  <div className="mt-1.5 p-2 rounded-xl text-xs font-semibold flex gap-1 items-start" 
-                                    style={{ 
-                                      background: dark ? "rgba(239,68,68,0.08)" : "#fef2f2", 
-                                      color: "#ef4444" 
-                                    }}>
-                                    <span className="shrink-0 text-sm">💡</span>
-                                    <span className="italic">"{item.note}"</span>
-                                  </div>
-                                ) : null}
                               </div>
-                            ))}
-                          </div>
-                        </div>
 
-                        {/* Action Button */}
-                        <button onClick={() => updateStatus(order.id, statusNext[order.status])}
-                          className="w-full font-bold py-3 rounded-2xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
-                          style={{ 
-                            background: order.status === "new" ? "#f97316" : "#2563eb", 
-                            color: "#fff",
-                            boxShadow: order.status === "new" ? "0 4px 12px rgba(249,115,22,0.2)" : "0 4px 12px rgba(37,99,235,0.2)"
-                          }}>
-                          <span>{order.status === "new" ? `👨‍🍳 ${tx.btnPrepare}` : `✅ ${tx.btnDeliver}`}</span>
-                        </button>
-                      </div>
-                    );
-                  })}
+                              {/* Items */}
+                              <div className="space-y-3 mb-6">
+                                {itemsToRender.map((item, i) => {
+                                  // In waiter view, show if food items are ready if order is preparing
+                                  const isItemFood = isFoodItem(item.name);
+                                  const showFoodReadyBadge = staffRole === "waiter" && isItemFood && order.status === "ready";
+                                  
+                                  return (
+                                    <div key={i} className="flex flex-col pb-2 last:pb-0 border-b border-dashed last:border-0" style={{ borderColor: borderCol }}>
+                                      <div className="flex justify-between items-start text-sm">
+                                        <div className="flex flex-col flex-1 pr-2">
+                                          <span className="font-bold" style={{ color: textMain }}>{item.name}</span>
+                                          {showFoodReadyBadge && (
+                                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">🍳 Spremno</span>
+                                          )}
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-lg text-xs font-black shrink-0" 
+                                          style={{ 
+                                            background: dark ? "rgba(249,115,22,0.15)" : "#ffedd5", 
+                                            color: "#f97316" 
+                                          }}>
+                                          × {item.qty}
+                                        </span>
+                                      </div>
+                                      {item.note ? (
+                                        <div className="mt-1.5 p-2 rounded-xl text-xs font-semibold flex gap-1 items-start" 
+                                          style={{ 
+                                            background: dark ? "rgba(239,68,68,0.08)" : "#fef2f2", 
+                                            color: "#ef4444" 
+                                          }}>
+                                          <span className="shrink-0 text-sm">💡</span>
+                                          <span className="italic">"{item.note}"</span>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <div className="flex gap-2">
+                              <button onClick={() => updateStatus(order.id, statusNext[order.status])}
+                                className="flex-1 font-bold py-3 rounded-2xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                                style={{ 
+                                  background: order.status === "new" ? "#f97316" : order.status === "preparing" ? "#3b82f6" : "#10b981", 
+                                  color: "#fff",
+                                  boxShadow: order.status === "new" ? "0 4px 12px rgba(249,115,22,0.2)" : order.status === "preparing" ? "0 4px 12px rgba(59,130,246,0.2)" : "0 4px 12px rgba(16,185,129,0.2)"
+                                }}>
+                                <span>
+                                  {order.status === "new" 
+                                    ? `👨‍🍳 ${tx.btnPrepare}` 
+                                    : order.status === "preparing" 
+                                    ? `🍳 ${tx.btnReady || "Spremno"}` 
+                                    : `✅ ${tx.btnDeliver}`}
+                                </span>
+                              </button>
+                              {staffRole === "waiter" && order.status !== "ready" && (
+                                <button onClick={() => updateStatus(order.id, "delivered")}
+                                  className="px-3 rounded-2xl text-sm font-bold transition-all active:scale-95 border"
+                                  style={{ borderColor: borderCol, color: textSub }}
+                                  title={lang === "EN" ? "Quick Deliver" : "Brza dostava"}>
+                                  ✓
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
