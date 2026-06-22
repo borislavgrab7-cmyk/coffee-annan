@@ -3,7 +3,7 @@
   "short_name": "Mala Stanica",
   "description": "Digitalni meni za brzo i bezbjedno naručivanje hrane i pića direktno sa stola.",
   "start_url": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "any",
   "background_color": "#0f0a05",
   "theme_color": "#f97316",
