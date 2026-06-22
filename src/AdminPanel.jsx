@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabaseClient";
 
 
@@ -358,6 +358,68 @@ export default function AdminPanel({ menuData, setMenuData, cafeInfo, setCafeInf
   const [tableCount, setTableCount] = useState(10);
   const [showReorderCat, setShowReorderCat] = useState(false);
   const [categoryOrder, setCategoryOrder] = useState([]);
+  const tabsRef = useRef(null);
+
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el) return;
+
+    // Scroll horizontally with mouse wheel
+    const onWheel = (e) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      el.scrollTo({
+        left: el.scrollLeft + e.deltaY,
+        behavior: "auto"
+      });
+    };
+
+    // Grab-to-scroll (drag horizontal scrolling)
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+
+    const onMouseDown = (e) => {
+      isDown = true;
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+      el.style.cursor = "grabbing";
+    };
+
+    const onMouseLeave = () => {
+      isDown = false;
+      el.style.cursor = "grab";
+    };
+
+    const onMouseUp = () => {
+      isDown = false;
+      el.style.cursor = "grab";
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5; // Scroll speed multiplier
+      el.scrollLeft = scrollLeft - walk;
+    };
+
+    el.style.cursor = "grab";
+    el.style.userSelect = "none"; // Prevent text selection while dragging
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mouseleave", onMouseLeave);
+    el.addEventListener("mouseup", onMouseUp);
+    el.addEventListener("mousemove", onMouseMove);
+
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mouseleave", onMouseLeave);
+      el.removeEventListener("mouseup", onMouseUp);
+      el.removeEventListener("mousemove", onMouseMove);
+    };
+  }, []);
 
   // Sync categoryOrder from menuData keys (and cafeInfo.categoryOrder if set)
   useEffect(() => {
@@ -584,7 +646,7 @@ export default function AdminPanel({ menuData, setMenuData, cafeInfo, setCafeInf
       </div>
 
       {/* ── CATEGORY TABS ── */}
-      <div className="flex overflow-x-auto px-4 pt-3 pb-2 gap-2 shrink-0" style={{ scrollbarWidth: "none" }}>
+      <div ref={tabsRef} className="flex overflow-x-auto px-4 pt-3 pb-2 gap-2 shrink-0" style={{ scrollbarWidth: "none" }}>
         {displayTabs.map(cat => (
           <button key={cat} onClick={() => setActiveTab(cat)}
             className="shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-all"

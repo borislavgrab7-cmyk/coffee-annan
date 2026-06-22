@@ -388,9 +388,17 @@ const globalStyles = `
     from { opacity:0; transform:translateY(100%) scale(0.98); }
     to   { opacity:1; transform:translateY(0) scale(1); }
   }
+  @keyframes modalOut {
+    from { opacity:1; transform:translateY(0) scale(1); }
+    to   { opacity:0; transform:translateY(100%) scale(0.98); }
+  }
   @keyframes overlayIn {
     from { opacity:0; }
     to   { opacity:1; }
+  }
+  @keyframes overlayOut {
+    from { opacity:1; }
+    to   { opacity:0; }
   }
 
   /* ── MISC ── */
@@ -450,7 +458,9 @@ const globalStyles = `
   .animate-taglineReveal{ animation: taglineReveal 0.5s ease forwards; animation-delay: 0.5s; opacity:0; }
   .animate-dotsAppear   { animation: dotsAppear 0.4s ease forwards; animation-delay: 0.8s; opacity:0; }
   .animate-modalIn      { animation: modalIn 0.4s cubic-bezier(0.34,1.2,0.64,1) forwards; }
+  .animate-modalOut     { animation: modalOut 0.3s cubic-bezier(0.34,1.2,0.64,1) forwards; }
   .animate-overlayIn    { animation: overlayIn 0.25s ease forwards; }
+  .animate-overlayOut   { animation: overlayOut 0.25s ease forwards; }
   .animate-pulse-soft   { animation: pulse-soft 2s ease infinite; }
   .animate-statusPop    { animation: statusPop 0.45s cubic-bezier(0.34,1.4,0.64,1) forwards; }
   .animate-timerTick    { animation: timerTick 1s ease infinite; }
@@ -693,6 +703,81 @@ export default function App() {
   const [tableNumber, setTableNumber] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [waiterToast, setWaiterToast] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isClosingDetail, setIsClosingDetail] = useState(false);
+  const detailModalRef = useRef(null);
+  const detailContentRef = useRef(null);
+  const detailTouchStartY = useRef(0);
+  const detailIsSwiping = useRef(false);
+  const customerTabsRef = useRef(null);
+
+  const closeDetail = () => {
+    setIsClosingDetail(true);
+    if (detailModalRef.current) {
+      detailModalRef.current.style.transform = "";
+      detailModalRef.current.style.transition = "";
+    }
+    setTimeout(() => {
+      setSelectedItem(null);
+      setIsClosingDetail(false);
+    }, 300); // matches the duration of animate-modalOut
+  };
+
+  useEffect(() => {
+    const el = customerTabsRef.current;
+    if (!el) return;
+
+    const onWheel = (e) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      el.scrollTo({
+        left: el.scrollLeft + e.deltaY,
+        behavior: "auto"
+      });
+    };
+
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+
+    const onMouseDown = (e) => {
+      isDown = true;
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+      el.style.cursor = "grabbing";
+    };
+    const onMouseLeave = () => {
+      isDown = false;
+      el.style.cursor = "grab";
+    };
+    const onMouseUp = () => {
+      isDown = false;
+      el.style.cursor = "grab";
+    };
+    const onMouseMove = (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      el.scrollLeft = scrollLeft - walk;
+    };
+
+    el.style.cursor = "grab";
+    el.style.userSelect = "none";
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mouseleave", onMouseLeave);
+    el.addEventListener("mouseup", onMouseUp);
+    el.addEventListener("mousemove", onMouseMove);
+
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mouseleave", onMouseLeave);
+      el.removeEventListener("mouseup", onMouseUp);
+      el.removeEventListener("mousemove", onMouseMove);
+    };
+  }, []);
 
   useEffect(() => {
     if (waiterToast) {
@@ -700,6 +785,86 @@ export default function App() {
       return () => clearTimeout(t);
     }
   }, [waiterToast]);
+
+  useEffect(() => {
+    if (selectedItem && !isClosingDetail) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [selectedItem, isClosingDetail]);
+
+  useEffect(() => {
+    const modalEl = detailModalRef.current;
+    if (!modalEl) return;
+
+    const onTouchStart = (e) => {
+      const touch = e.touches[0];
+      const target = e.target;
+      const isContent = detailContentRef.current && detailContentRef.current.contains(target);
+      
+      // If the touch started inside the scrollable content container
+      // and it's not scrolled to the top, let the user scroll normally instead of dragging the sheet
+      if (isContent && detailContentRef.current.scrollTop > 0) {
+        detailIsSwiping.current = false;
+        return;
+      }
+
+      detailTouchStartY.current = touch.clientY;
+      detailIsSwiping.current = true;
+      modalEl.style.transition = "none";
+    };
+
+    const onTouchMove = (e) => {
+      if (!detailIsSwiping.current) return;
+      const touch = e.touches[0];
+      const diffY = touch.clientY - detailTouchStartY.current;
+
+      if (diffY > 0) {
+        // Dragging downwards
+        if (e.cancelable) e.preventDefault();
+        modalEl.style.transform = `translateY(${diffY}px)`;
+      } else {
+        // Dragging upwards
+        modalEl.style.transform = "";
+      }
+    };
+
+    const onTouchEnd = (e) => {
+      if (!detailIsSwiping.current) return;
+      detailIsSwiping.current = false;
+      const touch = e.changedTouches[0];
+      const diffY = touch.clientY - detailTouchStartY.current;
+
+      if (diffY > 100) {
+        // Swiped down past threshold: slide all the way off-screen and close
+        setIsClosingDetail(true);
+        modalEl.style.transition = "transform 0.25s ease-in";
+        modalEl.style.transform = "translateY(100%)";
+        setTimeout(() => {
+          setSelectedItem(null);
+          setIsClosingDetail(false);
+        }, 250);
+      } else {
+        // Snap back to open position
+        modalEl.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+        modalEl.style.transform = "";
+      }
+    };
+
+    modalEl.addEventListener("touchstart", onTouchStart, { passive: true });
+    modalEl.addEventListener("touchmove", onTouchMove, { passive: false });
+    modalEl.addEventListener("touchend", onTouchEnd, { passive: true });
+
+    return () => {
+      modalEl.removeEventListener("touchstart", onTouchStart);
+      modalEl.removeEventListener("touchmove", onTouchMove);
+      modalEl.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [selectedItem, isClosingDetail]);
 
   const lastBackTime = useRef(0);
   const [showExitToast, setShowExitToast] = useState(false);
@@ -961,7 +1126,8 @@ export default function App() {
               badge: item.badge,
               orders: item.orders_count,
               sort_order: item.sort_order,
-              is_available: item.is_available !== false
+              is_available: item.is_available !== false,
+              allergens: item.allergens
             });
           });
           return grouped;
@@ -1482,7 +1648,8 @@ export default function App() {
     const badge = item.badge ? badgeConfig[item.badge] : null;
     const isAvailable = item.is_available !== false;
     return (
-      <div key={`${item.id}-${activeCategory}`} className="animate-fadeIn row-press"
+      <div key={`${item.id}-${activeCategory}`} className="animate-fadeIn row-press cursor-pointer"
+        onClick={() => setSelectedItem(item)}
         style={{ animationDelay: `${idx * 0.05}s`, borderBottom: `1px solid ${borderCol}` }}>
         <div className="flex items-center gap-3 px-4 py-3" style={{ opacity: isAvailable ? 1 : 0.6 }}>
           {/* Image */}
@@ -1513,14 +1680,14 @@ export default function App() {
             <div className="flex items-center justify-between mt-2">
               <span className="font-bold text-base" style={{ color: textPrice }}>{item.price.toFixed(2)} KM</span>
               {!isAvailable ? (
-                <button disabled
+                <button disabled onClick={e => e.stopPropagation()}
                   className="font-bold px-4 py-2.5 rounded-full text-xs cursor-not-allowed"
                   style={{ background: dark ? "#292524" : "#f5f0e8", color: textSub, minWidth: "80px" }}>
                   Rasprodato
                 </button>
               ) : qty === 0 ? (
-                <div className="relative" style={{ minWidth: "80px" }}>
-                  <button onClick={() => addToCart(item)}
+                <div className="relative" style={{ minWidth: "80px" }} onClick={e => e.stopPropagation()}>
+                  <button onClick={(e) => { e.stopPropagation(); addToCart(item); }}
                     className={`font-bold px-5 py-2.5 rounded-full text-sm w-full ${justAdded ? "animate-addBounce" : ""}`}
                     style={{ background: "#f97316", color: "#fff", position: "relative", zIndex: 1 }}>
                     + {tx.add}
@@ -1540,13 +1707,13 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <div className={`flex items-center gap-2 ${justAdded ? "animate-bounceIn" : ""}`}>
-                  <button onClick={() => removeFromCart(item.id)}
+                <div className={`flex items-center gap-2 ${justAdded ? "animate-bounceIn" : ""}`} onClick={e => e.stopPropagation()}>
+                  <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.id); }}
                     className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl"
                     style={{ background: dark ? "#292524" : "#f5f0e8", color: textMain }}>−</button>
                   <span className="font-bold text-base w-5 text-center" style={{ color: textMain }}>{qty}</span>
                   <div className="relative">
-                    <button onClick={() => addToCart(item)}
+                    <button onClick={(e) => { e.stopPropagation(); addToCart(item); }}
                       className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl ${justAdded ? "animate-addBounce" : ""}`}
                       style={{ background: "#f97316", color: "#fff", position: "relative", zIndex: 1 }}>+</button>
                     {justAdded && (
@@ -2345,7 +2512,7 @@ export default function App() {
           </div>
 
           {/* ── CATEGORY TABS sa ikonama ── */}
-          <div className="flex overflow-x-auto gap-0">
+          <div ref={customerTabsRef} className="flex overflow-x-auto gap-0">
             {categories.map(cat => {
               const isActive = activeCategory === cat;
               
@@ -2494,6 +2661,160 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* ── DETAIL MODAL ── */}
+      {selectedItem && (() => {
+        const qty = cart[selectedItem.id]?.qty || 0;
+        const badge = selectedItem.badge ? badgeConfig[selectedItem.badge] : null;
+        return (
+          <div className={`fixed inset-0 z-40 flex items-end justify-center ${isClosingDetail ? "animate-overlayOut" : "animate-overlayIn"}`}
+            style={{ background: "rgba(0,0,0,0.55)" }}
+            onClick={closeDetail}>
+            <div ref={detailModalRef} className={`w-full max-w-md rounded-t-3xl overflow-hidden max-h-[88vh] flex flex-col ${isClosingDetail ? "animate-modalOut" : "animate-modalIn"}`}
+              style={{ background: cardBg, borderTop: `1px solid ${borderCol}` }}
+              onClick={e => e.stopPropagation()}>
+              
+              {/* Image Section */}
+              <div className="relative w-full h-[224px] shrink-0" style={{ background: imgBg }}>
+                {selectedItem.img ? (
+                  <img
+                    src={selectedItem.img}
+                    alt={selectedItem.name}
+                    className="w-full h-full object-cover"
+                    onError={e => {
+                      e.target.style.display = "none";
+                      e.target.parentNode.innerHTML = `<div class="w-full h-full flex items-center justify-center" style="font-size: 5rem">${selectedItem.emoji || "🍽️"}</div>`;
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center" style={{ fontSize: "5rem" }}>
+                    {selectedItem.emoji || "🍽️"}
+                  </div>
+                )}
+
+                {/* X button over image (top right) */}
+                <button
+                  onClick={closeDetail}
+                  className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-xl font-bold bg-black/40 text-white backdrop-blur-sm active:scale-95 transition-all cursor-pointer z-10"
+                >
+                  ×
+                </button>
+
+                {/* Badge over image (top left) */}
+                {badge && (
+                  <div
+                    className="absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold text-white flex items-center gap-1 z-10"
+                    style={{ background: badge.color }}
+                  >
+                    {selectedItem.badge === "popular" || selectedItem.badge === "recommended" ? "⭐" : "✨"} {tx[`badge${selectedItem.badge.charAt(0).toUpperCase() + selectedItem.badge.slice(1)}`]}
+                  </div>
+                )}
+              </div>
+
+              {/* Middle Content Section - Scrollable */}
+              <div ref={detailContentRef} className="p-6 overflow-y-auto flex-1">
+                {/* Title */}
+                <h3 className="font-bold text-xl mb-2" style={{ color: textMain }}>
+                  {lang === "EN" ? (selectedItem.name_en || selectedItem.name) : selectedItem.name}
+                </h3>
+
+                {/* Full Description */}
+                {(lang === "EN" ? (selectedItem.desc_en || selectedItem.desc) : selectedItem.desc) && (
+                  <p className="text-sm leading-relaxed mb-5" style={{ color: textSub }}>
+                    {lang === "EN" ? (selectedItem.desc_en || selectedItem.desc) : selectedItem.desc}
+                  </p>
+                )}
+
+                {/* Allergens */}
+                {selectedItem.allergens && Array.isArray(selectedItem.allergens) && selectedItem.allergens.length > 0 && (
+                  <div className="mb-5">
+                    <p className="text-xs uppercase tracking-wider font-bold mb-2" style={{ color: textSub }}>
+                      {lang === "EN" ? "Allergens" : "Alergeni"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedItem.allergens.map((allergen, i) => (
+                        <span key={i} className="text-xs px-2.5 py-1 rounded-full border font-semibold"
+                          style={{ borderColor: borderCol, color: textSub, background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+                          {allergen}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold" style={{ color: textSub }}>
+                    {lang === "EN" ? "Price" : "Cijena"}
+                  </span>
+                  <span className="font-extrabold text-xl" style={{ color: textPrice }}>
+                    {selectedItem.price.toFixed(2)} KM
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom Sticky Action Area */}
+              <div className="p-6 pt-3 shrink-0 border-t" style={{ borderColor: borderCol, background: cardBg }}>
+                {qty === 0 ? (
+                  <button
+                    onClick={() => addToCart(selectedItem)}
+                    className={`w-full py-4 rounded-2xl font-bold text-base btn-press cursor-pointer ${addedId === selectedItem.id ? "animate-addBounce" : ""}`}
+                    style={{ background: "#f97316", color: "#fff" }}
+                  >
+                    + {tx.add}
+                  </button>
+                ) : (
+                  <div className={`flex items-center gap-4 ${addedId === selectedItem.id ? "animate-bounceIn" : ""}`}>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => removeFromCart(selectedItem.id)}
+                        className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-2xl cursor-pointer"
+                        style={{ background: dark ? "#292524" : "#f5f0e8", color: textMain }}
+                      >
+                        −
+                      </button>
+                      <span className="font-bold text-base w-5 text-center" style={{ color: textMain }}>
+                        {qty}
+                      </span>
+                      <div className="relative">
+                        <button
+                          onClick={() => addToCart(selectedItem)}
+                          className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-2xl cursor-pointer ${addedId === selectedItem.id ? "animate-addBounce" : ""}`}
+                          style={{ background: "#f97316", color: "#fff", position: "relative", zIndex: 1 }}
+                        >
+                          +
+                        </button>
+                        {addedId === selectedItem.id && (
+                          <span
+                            key={`ring-detail-${selectedItem.id}-${addedCount}`}
+                            className="animate-ringPulse"
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              borderRadius: "9999px",
+                              border: "2.5px solid #f97316",
+                              pointerEvents: "none",
+                              zIndex: 0
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={closeDetail}
+                      className="flex-1 py-4 rounded-2xl font-bold text-base btn-press text-center cursor-pointer"
+                      style={{ background: "#f97316", color: "#fff" }}
+                    >
+                      {lang === "EN" ? "Done" : "Gotovo"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── CALL WAITER MODAL ── */}
       {showCallModal && (
